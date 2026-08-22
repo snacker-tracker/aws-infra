@@ -43,15 +43,19 @@ data "aws_iam_policy_document" "github_actions_trust" {
 
     # AWS requires OIDC trust policies to scope on `sub` or
     # `job_workflow_ref` specifically (any other claim is rejected as "not
-    # scoped"). `job_workflow_ref` is used here rather than `sub` because
-    # this org has immutable-ID subject claims enabled, making `sub` look
-    # like "repo:org@ORGID/repo@REPOID:ref:...", not the plain form assumed
-    # below. `job_workflow_ref` stays plain either way, and additionally
-    # pins to this specific workflow file (not just the branch).
+    # scoped"). job_workflow_ref-based matching was tried first (cleaner:
+    # no numeric IDs, pins to the specific workflow file) and produced a
+    # trust policy confirmed byte-for-byte correct against the token's
+    # actual claims, but STS still rejected it with a generic
+    # "AccessDenied: An unknown error occurred" every time — apparently
+    # broken for this org/account. Matching on `sub` instead (verified
+    # working) requires the numeric org/repo IDs because this org has
+    # immutable-ID subject claims baked into `sub`
+    # ("repo:org@ORGID/repo@REPOID:ref:..."), not the plain form.
     condition {
       test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:job_workflow_ref"
-      values   = ["${var.github_repo}/.github/workflows/terraform.yml@refs/heads/master"]
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${split("/", var.github_repo)[0]}@${var.github_org_id}/${split("/", var.github_repo)[1]}@${var.github_repo_id}:ref:refs/heads/master"]
     }
   }
 }

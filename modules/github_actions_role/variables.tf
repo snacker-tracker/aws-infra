@@ -14,8 +14,17 @@ variable "ref" {
   default     = "refs/heads/main"
 }
 
-variable "workflow_path" {
-  description = "Path to the workflow file (relative to repo root) allowed to assume this role, e.g. .github/workflows/deploy.yml"
+# Numeric GitHub org/repo IDs, needed to build the OIDC `sub` condition
+# value. See the comment in main.tf for why `sub` is used instead of
+# job_workflow_ref (which was found not to work in this AWS account).
+# IDs are stable across org/repo renames.
+variable "github_org_id" {
+  description = "Numeric GitHub organization ID for github_repo's owner"
+  type        = string
+}
+
+variable "github_repo_id" {
+  description = "Numeric GitHub repository ID for github_repo"
   type        = string
 }
 

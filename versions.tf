@@ -12,14 +12,11 @@ terraform {
     }
   }
 
-  # Uncomment once state_backend.tf's bucket has been created via a local
-  # apply, then run: terraform init -migrate-state
-  #
-  # backend "s3" {
-  #   bucket       = "snacker-tracker-aws-infra-tfstate"
-  #   key          = "root/terraform.tfstate"
-  #   region       = "ap-southeast-1"
-  #   encrypt      = true
-  #   use_lockfile = true
-  # }
+  backend "s3" {
+    bucket       = "snacker-tracker-aws-infra-tfstate"
+    key          = "root/terraform.tfstate"
+    region       = "ap-southeast-1"
+    encrypt      = true
+    use_lockfile = true
+  }
 }
