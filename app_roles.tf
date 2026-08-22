@@ -11,6 +11,7 @@
 #
 #   role_name                = "github-actions-snacker-tracker-deploy"
 #   github_repo              = "snacker-tracker/snacker-tracker"
+#   workflow_path             = ".github/workflows/deploy.yml"
 #   oidc_provider_arn        = aws_iam_openid_connect_provider.github_actions.arn
 #   permissions_boundary_arn = aws_iam_policy.app_role_boundary.arn
 #

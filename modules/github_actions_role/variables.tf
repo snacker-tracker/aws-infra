@@ -14,6 +14,11 @@ variable "ref" {
   default     = "refs/heads/main"
 }
 
+variable "workflow_path" {
+  description = "Path to the workflow file (relative to repo root) allowed to assume this role, e.g. .github/workflows/deploy.yml"
+  type        = string
+}
+
 variable "oidc_provider_arn" {
   description = "ARN of the account's GitHub Actions OIDC provider"
   type        = string

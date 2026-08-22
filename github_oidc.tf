@@ -41,12 +41,17 @@ data "aws_iam_policy_document" "github_actions_trust" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Restricted to the main branch only: PR runs (which can execute
-    # arbitrary changes from a fork/branch) cannot assume this role.
+    # AWS requires OIDC trust policies to scope on `sub` or
+    # `job_workflow_ref` specifically (any other claim is rejected as "not
+    # scoped"). `job_workflow_ref` is used here rather than `sub` because
+    # this org has immutable-ID subject claims enabled, making `sub` look
+    # like "repo:org@ORGID/repo@REPOID:ref:...", not the plain form assumed
+    # below. `job_workflow_ref` stays plain either way, and additionally
+    # pins to this specific workflow file (not just the branch).
     condition {
       test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:ref:refs/heads/master"]
+      variable = "token.actions.githubusercontent.com:job_workflow_ref"
+      values   = ["${var.github_repo}/.github/workflows/terraform.yml@refs/heads/master"]
     }
   }
 }
