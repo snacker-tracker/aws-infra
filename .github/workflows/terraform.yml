@@ -1,0 +1,45 @@
+name: terraform
+
+on:
+  push:
+    branches: [master]
+
+# Note: this only runs on pushes to main, because the IAM role's trust
+# policy is restricted to `ref:refs/heads/main` (see github_oidc.tf). A
+# pull_request-triggered run would fail to authenticate, since GitHub's
+# OIDC token for PR events has a different `sub` claim (not tied to a
+# ref). Add a separate, lower-privilege plan-only role if PR plans are
+# wanted later.
+
+permissions:
+  id-token: write # required to fetch the OIDC token for AssumeRoleWithWebIdentity
+  contents: read
+
+concurrency:
+  group: terraform-root
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - run: terraform init
+
+      - run: terraform fmt -check
+
+      - run: terraform validate
+
+      - name: terraform plan
+        run: terraform plan -no-color
+
+      - name: terraform apply
+        run: terraform apply -auto-approve
