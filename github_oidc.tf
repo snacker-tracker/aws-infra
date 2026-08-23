@@ -52,10 +52,17 @@ data "aws_iam_policy_document" "github_actions_trust" {
     # working) requires the numeric org/repo IDs because this org has
     # immutable-ID subject claims baked into `sub`
     # ("repo:org@ORGID/repo@REPOID:ref:..."), not the plain form.
+    #
+    # Two values: the `plan` job runs on a plain branch push (ref-based
+    # sub); the `apply` job is gated behind the "prod" GitHub Environment,
+    # which replaces the subject with "environment:prod" instead of a ref.
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${split("/", var.github_repo)[0]}@${var.github_org_id}/${split("/", var.github_repo)[1]}@${var.github_repo_id}:ref:refs/heads/master"]
+      values = [
+        "repo:${split("/", var.github_repo)[0]}@${var.github_org_id}/${split("/", var.github_repo)[1]}@${var.github_repo_id}:ref:refs/heads/master",
+        "repo:${split("/", var.github_repo)[0]}@${var.github_org_id}/${split("/", var.github_repo)[1]}@${var.github_repo_id}:environment:prod",
+      ]
     }
   }
 }
