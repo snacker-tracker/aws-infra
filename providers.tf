@@ -9,7 +9,10 @@ provider "aws" {
 
   default_tags {
     tags = {
+      Environment = "shared"
       ManagedBy = "terraform"
+      Repository = "git@github.com:snacker-tracker/aws-infra.git"
+      Project = "base-infra"
     }
   }
 }

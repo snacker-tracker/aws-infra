@@ -73,6 +73,9 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
       "lambda:DeleteEventSourceMapping",
       "lambda:GetEventSourceMapping",
       "lambda:ListEventSourceMappings",
+      "lambda:TagResource",
+      "lambda:UntagResource",
+      "lambda:ListTags",
     ]
     # Event source mapping ARNs are UUID-based and unknown pre-creation;
     # IAM doesn't support scoping these to the underlying function/queue.
@@ -132,6 +135,19 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
     resources = ["arn:aws:apigateway:*::/*"]
   }
 
+  # Edge-optimized API Gateway custom domains provision a CloudFront
+  # distribution internally, but API Gateway still checks that the
+  # *caller* holds cloudfront:UpdateDistribution before associating a
+  # cert with it — confirmed by CreateDomainName's own error message
+  # naming this exact permission. Resource "*" because the distribution
+  # ID is managed internally by API Gateway, never exposed for scoping.
+  statement {
+    sid       = "CloudFrontForApiGatewayCustomDomain"
+    effect    = "Allow"
+    actions   = ["cloudfront:UpdateDistribution"]
+    resources = ["*"]
+  }
+
   statement {
     sid    = "AcmForCustomDomain"
     effect = "Allow"
@@ -155,6 +171,7 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
     actions = [
       "route53:ChangeResourceRecordSets",
       "route53:ListResourceRecordSets",
+      "route53:GetHostedZone",
     ]
     resources = [aws_route53_zone.khanom_xyz.arn]
   }
@@ -228,13 +245,34 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
       "s3:PutBucketPolicy",
       "s3:GetBucketPolicy",
       "s3:PutBucketAcl",
+      "s3:GetBucketAcl",
       "s3:PutEncryptionConfiguration",
+      "s3:GetEncryptionConfiguration",
       "s3:PutLifecycleConfiguration",
+      "s3:GetLifecycleConfiguration",
       "s3:GetBucketLocation",
       "s3:ListBucket",
       "s3:PutBucketTagging",
+      "s3:GetBucketTagging",
       "s3:PutBucketVersioning",
+      "s3:GetBucketVersioning",
       "s3:PutBucketPublicAccessBlock",
+      "s3:GetBucketPublicAccessBlock",
+      # The rest of these are never explicitly set by this app's .tf, but
+      # aws_s3_bucket's read/refresh cycle checks every sub-configuration
+      # a bucket can have regardless (CORS, website, logging, etc.) —
+      # missing any one of these fails `plan`/`apply` on this resource.
+      "s3:GetBucketCORS",
+      "s3:GetBucketWebsite",
+      "s3:GetBucketLogging",
+      "s3:GetReplicationConfiguration",
+      "s3:GetBucketRequestPayment",
+      "s3:GetBucketObjectLockConfiguration",
+      "s3:GetAccelerateConfiguration",
+      "s3:GetBucketNotification",
+      # Not just a read-cycle check: aws_s3_bucket_notification wires this
+      # bucket's events to the app's s3-to-lambda SQS queue.
+      "s3:PutBucketNotification",
       "s3:GetObject",
       "s3:PutObject",
       "s3:DeleteObject",
@@ -250,6 +288,47 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
       "arn:aws:s3:::snacker-tracker-prod",
       "arn:aws:s3:::snacker-tracker-prod/*",
     ]
+  }
+
+  # Lets reporter-serverless store its own Terraform state in THIS repo's
+  # state bucket, at the bare key "snacker-tracker-reporter-serverless"
+  # (that repo's backend `key` has no "/terraform.tfstate" suffix — it IS
+  # the object name), instead of needing its own bucket. Both the bare-key
+  # and "/*" forms are listed: a "prefix/*" ARN pattern requires a literal
+  # "/" after the prefix to match anything, so it does NOT match an object
+  # whose key is exactly the prefix string with nothing after it — this
+  # bit us in practice (403s) before these bare-key entries were added.
+  # The "/*" forms remain in case that key ever gains a real filename
+  # suffix later. Two prefix variants (plain and "env:/<workspace>/...")
+  # because that repo uses Terraform *workspaces* (dev/prod), which nests
+  # state under a literal "env:/<workspace>/" prefix BEFORE the key.
+  statement {
+    sid    = "SharedStateBucketForReporterServerless"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+    ]
+    resources = [
+      "${aws_s3_bucket.tf_state.arn}/snacker-tracker-reporter-serverless",
+      "${aws_s3_bucket.tf_state.arn}/snacker-tracker-reporter-serverless/*",
+      "${aws_s3_bucket.tf_state.arn}/env:/*/snacker-tracker-reporter-serverless",
+      "${aws_s3_bucket.tf_state.arn}/env:/*/snacker-tracker-reporter-serverless/*",
+    ]
+  }
+
+  statement {
+    sid       = "SharedStateBucketListForReporterServerless"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
+    resources = [aws_s3_bucket.tf_state.arn]
+
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["snacker-tracker-reporter-serverless/*", "env:/*/snacker-tracker-reporter-serverless/*"]
+    }
   }
 
   statement {
@@ -269,6 +348,7 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
       "ecr:UploadLayerPart",
       "ecr:CompleteLayerUpload",
       "ecr:BatchGetImage",
+      "ecr:GetDownloadUrlForLayer",
       "ecr:DescribeRepositories",
       "ecr:ListImages",
     ]
@@ -282,7 +362,6 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
       "logs:CreateLogGroup",
       "logs:DeleteLogGroup",
       "logs:PutRetentionPolicy",
-      "logs:DescribeLogGroups",
       "logs:TagResource",
       "logs:ListTagsForResource",
     ]
@@ -291,6 +370,16 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
       "arn:aws:logs:*:*:log-group:/aws/lambda/snacker-tracker-*",
       "arn:aws:logs:*:*:log-group:API-Gateway-Execution-Logs*",
     ]
+  }
+
+  # DescribeLogGroups is a list operation — AWS doesn't support scoping it
+  # to specific log-group ARNs, it always needs Resource "*" (confirmed by
+  # the AccessDenied error naming a placeholder ARN, not a real one).
+  statement {
+    sid       = "CloudWatchLogGroupsDescribe"
+    effect    = "Allow"
+    actions   = ["logs:DescribeLogGroups"]
+    resources = ["*"]
   }
 
   statement {
