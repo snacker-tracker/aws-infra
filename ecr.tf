@@ -7,7 +7,7 @@ resource "aws_ecr_repository" "snacker_tracker_lambda_append_to_bronze" {
   image_tag_mutability = "MUTABLE"
 
   tags = {
-    Project = "snacker-tracker-reporter-serverless"
+    Component = "reporter-serverless"
   }
 
   image_scanning_configuration {

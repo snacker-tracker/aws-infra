@@ -12,7 +12,8 @@ provider "aws" {
       Environment = "shared"
       ManagedBy = "terraform"
       Repository = "git@github.com:snacker-tracker/aws-infra.git"
-      Project = "base-infra"
+      Project = "snacker-tracker"
+      Component = "base-infra"
     }
   }
 }
