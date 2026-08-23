@@ -8,24 +8,30 @@ variable "github_repo" {
   type        = string
 }
 
-variable "ref" {
-  description = "Git ref allowed to assume this role, e.g. refs/heads/main"
-  type        = string
-  default     = "refs/heads/main"
+variable "subjects" {
+  description = "List of OIDC subject suffixes allowed to assume this role, e.g. [\"ref:refs/heads/main\"] for branch-based auth, or [\"environment:prod\"] for a GitHub Environment-gated job. Multiple entries are OR'd (any one matching is enough)."
+  type        = list(string)
+  default     = ["ref:refs/heads/main"]
 }
 
 # Numeric GitHub org/repo IDs, needed to build the OIDC `sub` condition
-# value. See the comment in main.tf for why `sub` is used instead of
-# job_workflow_ref (which was found not to work in this AWS account).
-# IDs are stable across org/repo renames.
+# value ONLY for repos where GitHub embeds them (immutable-ID subject
+# claims). This turned out to be configured per-repo, not org-wide as
+# first assumed: aws-infra's tokens have them, reporter-serverless's
+# don't. Leave both null (default) for a plain "repo:org/repo:..." sub;
+# set both to enable the "repo:org@ORGID/repo@REPOID:..." form. Always
+# verify empirically (see README's OIDC gotchas) rather than assuming
+# either format — don't just copy whatever the last app used.
 variable "github_org_id" {
-  description = "Numeric GitHub organization ID for github_repo's owner"
+  description = "Numeric GitHub organization ID for github_repo's owner, or null for a plain (non-ID-embedded) sub"
   type        = string
+  default     = null
 }
 
 variable "github_repo_id" {
-  description = "Numeric GitHub repository ID for github_repo"
+  description = "Numeric GitHub repository ID for github_repo, or null for a plain (non-ID-embedded) sub"
   type        = string
+  default     = null
 }
 
 variable "oidc_provider_arn" {

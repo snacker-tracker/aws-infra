@@ -1,3 +1,17 @@
+locals {
+  github_org_name  = split("/", var.github_repo)[0]
+  github_repo_name = split("/", var.github_repo)[1]
+
+  # See the variable descriptions for github_org_id/github_repo_id: which
+  # form GitHub actually issues is per-repo, verified empirically, not
+  # assumed.
+  subject_owner_repo = (
+    var.github_org_id != null && var.github_repo_id != null
+    ? "${local.github_org_name}@${var.github_org_id}/${local.github_repo_name}@${var.github_repo_id}"
+    : var.github_repo
+  )
+}
+
 data "aws_iam_policy_document" "trust" {
   statement {
     effect  = "Allow"
@@ -21,15 +35,18 @@ data "aws_iam_policy_document" "trust" {
     # github_oidc.tf first, produced a trust policy confirmed correct
     # against the token's actual claims, and STS still rejected it with a
     # generic "AccessDenied" every time — apparently broken for this
-    # account. `sub` is used instead (verified working), which requires
-    # the numeric org/repo IDs because this org has immutable-ID subject
-    # claims baked into `sub` ("repo:org@ORGID/repo@REPOID:ref:..."), not
-    # the plain form. Note this only scopes to repo+ref, not a specific
-    # workflow file (job_workflow_ref would have, but doesn't work here).
+    # account. `sub` is used instead (verified working). Whether `sub`
+    # embeds numeric org/repo IDs turned out to be per-repo, not org-wide:
+    # see github_org_id/github_repo_id. Multiple values are allowed so one
+    # role can serve e.g. both a branch-triggered job and
+    # environment-gated deploy jobs.
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${split("/", var.github_repo)[0]}@${var.github_org_id}/${split("/", var.github_repo)[1]}@${var.github_repo_id}:ref:${var.ref}"]
+      values = [
+        for subject in var.subjects :
+        "repo:${local.subject_owner_repo}:${subject}"
+      ]
     }
   }
 }
