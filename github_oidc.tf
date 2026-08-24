@@ -120,3 +120,23 @@ resource "aws_iam_role_policy_attachment" "github_actions_plan" {
   role       = aws_iam_role.github_actions_plan.name
   policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
 }
+
+# ReadOnlyAccess deliberately excludes s3:PutObject/DeleteObject, but
+# Terraform's S3 native locking (use_lockfile) needs to create/delete a
+# lock file even for a plain `plan` — it still protects against
+# concurrent state reads. Scoped to exactly the lock object, not the
+# state file itself (no read/write access to the actual state content
+# beyond what ReadOnlyAccess's s3:GetObject already grants).
+data "aws_iam_policy_document" "github_actions_plan_state_lock" {
+  statement {
+    effect    = "Allow"
+    actions   = ["s3:PutObject", "s3:DeleteObject"]
+    resources = ["${aws_s3_bucket.tf_state.arn}/root/terraform.tfstate.tflock"]
+  }
+}
+
+resource "aws_iam_role_policy" "github_actions_plan_state_lock" {
+  name   = "state-lock"
+  role   = aws_iam_role.github_actions_plan.name
+  policy = data.aws_iam_policy_document.github_actions_plan_state_lock.json
+}

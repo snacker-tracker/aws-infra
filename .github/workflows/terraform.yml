@@ -56,7 +56,11 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   apply:
-    if: github.ref == 'refs/heads/master'
+    # `success()` must be explicit here: a job's own `if:` replaces the
+    # implicit success-of-needs check that `needs:` normally applies on
+    # its own, it doesn't get ANDed in automatically. Without this, apply
+    # would run on master even after a failed plan.
+    if: success() && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     needs: plan
     environment: prod # manual approval gate — configure required reviewers on this Environment in repo Settings
