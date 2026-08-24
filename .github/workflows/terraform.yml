@@ -38,13 +38,22 @@ jobs:
       - run: terraform validate
 
       - name: terraform plan
-        run: terraform plan -no-color -out=tfplan
+        run: terraform plan -no-color -out=tfplan | tee plan.txt
 
       - uses: actions/upload-artifact@v4
         with:
           name: tfplan
           path: tfplan
           retention-days: 1
+
+      - name: add plan output to job summary
+        run: |
+          {
+            echo '## Terraform Plan'
+            echo '```'
+            cat plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   apply:
     if: github.ref == 'refs/heads/master'
