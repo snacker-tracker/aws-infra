@@ -25,7 +25,25 @@ resource "aws_iam_openid_connect_provider" "github_actions" {
   ]
 }
 
-data "aws_iam_policy_document" "github_actions_trust" {
+# AWS requires OIDC trust policies to scope on `sub` or `job_workflow_ref`
+# specifically (any other claim is rejected as "not scoped").
+# job_workflow_ref-based matching was tried first (cleaner: no numeric
+# IDs, pins to the specific workflow file) and produced a trust policy
+# confirmed byte-for-byte correct against the token's actual claims, but
+# STS still rejected it with a generic "AccessDenied: An unknown error
+# occurred" every time — apparently broken for this org/account. Matching
+# on `sub` instead (verified working) requires the numeric org/repo IDs
+# because this org has immutable-ID subject claims baked into `sub`
+# ("repo:org@ORGID/repo@REPOID:ref:..."), not the plain form.
+locals {
+  github_actions_subject_prefix = "repo:${split("/", var.github_repo)[0]}@${var.github_org_id}/${split("/", var.github_repo)[1]}@${var.github_repo_id}"
+}
+
+# Full-admin role: used only by the `apply` job, which is gated behind the
+# "prod" GitHub Environment (manual approval) — see .github/workflows/terraform.yml.
+# Its subject is "environment:prod", not a branch ref, since Environment-
+# gated jobs get that claim instead.
+data "aws_iam_policy_document" "github_actions_admin_trust" {
   statement {
     effect  = "Allow"
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -41,38 +59,64 @@ data "aws_iam_policy_document" "github_actions_trust" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # AWS requires OIDC trust policies to scope on `sub` or
-    # `job_workflow_ref` specifically (any other claim is rejected as "not
-    # scoped"). job_workflow_ref-based matching was tried first (cleaner:
-    # no numeric IDs, pins to the specific workflow file) and produced a
-    # trust policy confirmed byte-for-byte correct against the token's
-    # actual claims, but STS still rejected it with a generic
-    # "AccessDenied: An unknown error occurred" every time — apparently
-    # broken for this org/account. Matching on `sub` instead (verified
-    # working) requires the numeric org/repo IDs because this org has
-    # immutable-ID subject claims baked into `sub`
-    # ("repo:org@ORGID/repo@REPOID:ref:..."), not the plain form.
-    #
-    # Two values: the `plan` job runs on a plain branch push (ref-based
-    # sub); the `apply` job is gated behind the "prod" GitHub Environment,
-    # which replaces the subject with "environment:prod" instead of a ref.
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "repo:${split("/", var.github_repo)[0]}@${var.github_org_id}/${split("/", var.github_repo)[1]}@${var.github_repo_id}:ref:refs/heads/master",
-        "repo:${split("/", var.github_repo)[0]}@${var.github_org_id}/${split("/", var.github_repo)[1]}@${var.github_repo_id}:environment:prod",
-      ]
+      values   = ["${local.github_actions_subject_prefix}:environment:prod"]
     }
   }
 }
 
 resource "aws_iam_role" "github_actions_admin" {
   name               = "github-actions-admin"
-  assume_role_policy = data.aws_iam_policy_document.github_actions_trust.json
+  assume_role_policy = data.aws_iam_policy_document.github_actions_admin_trust.json
 }
 
 resource "aws_iam_role_policy_attachment" "github_actions_admin" {
   role       = aws_iam_role.github_actions_admin.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
+# Read-only role: used by the unattended `plan` job, which runs on every
+# push with no manual gate — including feature branches (see the
+# StringLike wildcard below), for pre-merge visibility. Deliberately can't
+# mutate anything — if this job's credentials ever leaked, the blast
+# radius is "can read/enumerate this account's resources," not "can
+# change them," regardless of which branch triggered it.
+data "aws_iam_policy_document" "github_actions_plan_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github_actions.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    # StringLike (not StringEquals) with a "refs/heads/*" wildcard: this
+    # role is meant to be assumable from any branch, not just master, so
+    # feature-branch pushes get plan visibility too. Safe to broaden since
+    # ReadOnlyAccess can't mutate anything regardless of which branch.
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["${local.github_actions_subject_prefix}:ref:refs/heads/*"]
+    }
+  }
+}
+
+resource "aws_iam_role" "github_actions_plan" {
+  name               = "github-actions-plan"
+  assume_role_policy = data.aws_iam_policy_document.github_actions_plan_trust.json
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_plan" {
+  role       = aws_iam_role.github_actions_plan.name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
 }
