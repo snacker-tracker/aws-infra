@@ -27,6 +27,11 @@ output "runtime_role_boundary_arn" {
   value       = aws_iam_policy.runtime_role_boundary.arn
 }
 
+output "reporter_serverless_runtime_boundary_arn" {
+  description = "Set as permissions_boundary on reporter-serverless's runtime roles, replacing runtime_role_boundary_arn"
+  value       = aws_iam_policy.reporter_serverless_runtime_boundary.arn
+}
+
 output "interface_deploy_role_arns" {
   description = "Per environment: the role interface's deploy.yml assumes, replacing snacker-tracker-<env>-ci"
   value       = { for env, role in module.interface_deploy : env => role.role_arn }

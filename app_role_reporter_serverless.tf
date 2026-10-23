@@ -130,10 +130,16 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
       "iam:PutRolePermissionsBoundary",
     ]
     resources = local.reporter_serverless_runtime_roles
+    # Either boundary while the app's roles move from the generic one to
+    # its own (runtime_role_boundary_reporter_serverless.tf); the generic
+    # one goes once both workspaces have moved.
     condition {
       test     = "StringEquals"
       variable = "iam:PermissionsBoundary"
-      values   = [aws_iam_policy.runtime_role_boundary.arn]
+      values = [
+        aws_iam_policy.runtime_role_boundary.arn,
+        aws_iam_policy.reporter_serverless_runtime_boundary.arn,
+      ]
     }
   }
 
