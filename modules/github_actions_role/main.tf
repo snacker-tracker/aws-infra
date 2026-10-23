@@ -63,8 +63,10 @@ moved {
   to   = aws_iam_role_policy.this[0]
 }
 
+# Counted on policies, not policy_json: policy_json is often unknown until
+# apply (it references other resources' ARNs), and count must be known at plan.
 resource "aws_iam_role_policy" "this" {
-  count  = var.policy_json != null ? 1 : 0
+  count  = length(var.policies) == 0 ? 1 : 0
   name   = "${var.role_name}-permissions"
   role   = aws_iam_role.this.id
   policy = var.policy_json

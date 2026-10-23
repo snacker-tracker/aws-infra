@@ -112,6 +112,24 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
     ]
   }
 
+  # Lets that app put runtime_role_boundary.tf's boundary on its existing
+  # runtime roles, and only that one: no other boundary can be set, and
+  # none can be removed (DeleteRolePermissionsBoundary isn't granted).
+  statement {
+    sid     = "SetRuntimeRoleBoundary"
+    effect  = "Allow"
+    actions = ["iam:PutRolePermissionsBoundary"]
+    resources = [
+      "arn:aws:iam::*:role/snacker-tracker-*",
+      "arn:aws:iam::*:role/firehose-delivery-*",
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PermissionsBoundary"
+      values   = [aws_iam_policy.runtime_role_boundary.arn]
+    }
+  }
+
   statement {
     sid    = "OwnStandalonePolicies"
     effect = "Allow"

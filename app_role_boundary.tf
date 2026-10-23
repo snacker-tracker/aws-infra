@@ -61,8 +61,9 @@ data "aws_iam_policy_document" "app_role_boundary" {
   }
 
   # Denied only when targeting the CI/deploy-role layer specifically: any
-  # github-actions-* role (this account's convention for CI identities) or
-  # this boundary policy itself. Mutating a NON-CI-named role/policy (an
+  # github-actions-* role (this account's convention for CI identities),
+  # this boundary policy itself, or the runtime-role boundary
+  # (runtime_role_boundary.tf). Mutating a NON-CI-named role/policy (an
   # app's own runtime role) is left to the "allow everything by default"
   # statement above, controlled instead by each app role's own policy.
   statement {
@@ -82,6 +83,7 @@ data "aws_iam_policy_document" "app_role_boundary" {
     resources = [
       "arn:aws:iam::*:role/github-actions-*",
       "arn:aws:iam::*:policy/app-role-permissions-boundary",
+      "arn:aws:iam::*:policy/runtime-role-permissions-boundary",
       "arn:aws:iam::*:oidc-provider/token.actions.githubusercontent.com",
     ]
   }

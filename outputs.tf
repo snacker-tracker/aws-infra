@@ -22,6 +22,11 @@ output "reporter_serverless_deploy_role_arn" {
   value       = module.reporter_serverless_deploy.role_arn
 }
 
+output "runtime_role_boundary_arn" {
+  description = "Set as permissions_boundary on every runtime role an app's Terraform creates"
+  value       = aws_iam_policy.runtime_role_boundary.arn
+}
+
 output "interface_deploy_role_arns" {
   description = "Per environment: the role interface's deploy.yml assumes, replacing snacker-tracker-<env>-ci"
   value       = { for env, role in module.interface_deploy : env => role.role_arn }
