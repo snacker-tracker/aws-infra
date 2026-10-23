@@ -45,22 +45,6 @@ resource "aws_ecr_repository_policy" "snacker_tracker_lambda_append_to_bronze" {
   })
 }
 
-# ECR repo for github.com/snacker-tracker/interface's backend image (its
-# ADR 0006). Shared by its dev and prod environments: dev's pipeline builds
-# and pushes each image once, tagged with the commit SHA, and both
-# environments deploy it by digest. Originally created by interface's
-# infra/admin dev workspace, imported here.
-
-import {
-  to = aws_ecr_repository.snacker_tracker_lambda_interface
-  id = "snacker-tracker-lambda/interface"
-}
-
-import {
-  to = aws_ecr_repository_policy.snacker_tracker_lambda_interface
-  id = "snacker-tracker-lambda/interface"
-}
-
 resource "aws_ecr_repository" "snacker_tracker_lambda_interface" {
   name                 = "snacker-tracker-lambda/interface"
   image_tag_mutability = "IMMUTABLE"
