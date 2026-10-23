@@ -45,6 +45,13 @@ variable "permissions_boundary_arn" {
 }
 
 variable "policy_json" {
-  description = "IAM policy document (JSON) granting this role's actual permissions"
+  description = "IAM policy document (JSON) granting this role's actual permissions, as an inline policy. Optional when policies is set."
   type        = string
+  default     = null
+}
+
+variable "policies" {
+  description = "Managed policies to create and attach, as {name suffix: policy JSON}; each is named <role_name>-<suffix>. For permissions too large for one inline policy."
+  type        = map(string)
+  default     = {}
 }

@@ -45,6 +45,82 @@ resource "aws_ecr_repository_policy" "snacker_tracker_lambda_append_to_bronze" {
   })
 }
 
+# ECR repo for github.com/snacker-tracker/interface's backend image (its
+# ADR 0006). Shared by its dev and prod environments: dev's pipeline builds
+# and pushes each image once, tagged with the commit SHA, and both
+# environments deploy it by digest. Originally created by interface's
+# infra/admin dev workspace, imported here.
+
+import {
+  to = aws_ecr_repository.snacker_tracker_lambda_interface
+  id = "snacker-tracker-lambda/interface"
+}
+
+import {
+  to = aws_ecr_repository_policy.snacker_tracker_lambda_interface
+  id = "snacker-tracker-lambda/interface"
+}
+
+resource "aws_ecr_repository" "snacker_tracker_lambda_interface" {
+  name                 = "snacker-tracker-lambda/interface"
+  image_tag_mutability = "IMMUTABLE"
+
+  tags = {
+    Component = "interface"
+  }
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+# Same grant as for append-to-bronze, but scoped to snacker-tracker-*
+# functions rather than the whole account (kept as interface defined it).
+resource "aws_ecr_repository_policy" "snacker_tracker_lambda_interface" {
+  repository = aws_ecr_repository.snacker_tracker_lambda_interface.name
+  policy     = data.aws_iam_policy_document.snacker_tracker_lambda_interface_pull.json
+}
+
+data "aws_iam_policy_document" "snacker_tracker_lambda_interface_pull" {
+  statement {
+    sid     = "LambdaPulls"
+    actions = ["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = ["arn:aws:lambda:${var.region}:${data.aws_caller_identity.current.account_id}:function:snacker-tracker-*"]
+    }
+  }
+}
+
+# Untagged only: images are tagged by commit SHA and prod may run an older
+# one than dev, so tagged images are never expired automatically.
+resource "aws_ecr_lifecycle_policy" "snacker_tracker_lambda_interface" {
+  repository = aws_ecr_repository.snacker_tracker_lambda_interface.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire untagged images after 7 days"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 7
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}
+
 resource "aws_ecr_lifecycle_policy" "snacker_tracker_lambda_append_to_bronze" {
   repository = aws_ecr_repository.snacker_tracker_lambda_append_to_bronze.name
 

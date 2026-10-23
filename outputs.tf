@@ -22,6 +22,15 @@ output "reporter_serverless_deploy_role_arn" {
   value       = module.reporter_serverless_deploy.role_arn
 }
 
+output "interface_deploy_role_arns" {
+  description = "Per environment: the role interface's deploy.yml assumes, replacing snacker-tracker-<env>-ci"
+  value       = { for env, role in module.interface_deploy : env => role.role_arn }
+}
+
+output "snacker_tracker_lambda_interface_repository_url" {
+  value = aws_ecr_repository.snacker_tracker_lambda_interface.repository_url
+}
+
 output "snacker_tracker_lambda_append_to_bronze_repository_url" {
   value = aws_ecr_repository.snacker_tracker_lambda_append_to_bronze.repository_url
 }

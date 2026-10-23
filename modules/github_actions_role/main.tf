@@ -57,8 +57,29 @@ resource "aws_iam_role" "this" {
   permissions_boundary = var.permissions_boundary_arn
 }
 
+# The inline policy used to be unconditional.
+moved {
+  from = aws_iam_role_policy.this
+  to   = aws_iam_role_policy.this[0]
+}
+
 resource "aws_iam_role_policy" "this" {
+  count  = var.policy_json != null ? 1 : 0
   name   = "${var.role_name}-permissions"
   role   = aws_iam_role.this.id
   policy = var.policy_json
+}
+
+# Managed rather than inline: a role's inline policies share one 10,240
+# character limit, while each managed policy gets 6,144 of its own.
+resource "aws_iam_policy" "this" {
+  for_each = var.policies
+  name     = "${var.role_name}-${each.key}"
+  policy   = each.value
+}
+
+resource "aws_iam_role_policy_attachment" "this" {
+  for_each   = aws_iam_policy.this
+  role       = aws_iam_role.this.name
+  policy_arn = each.value.arn
 }
