@@ -12,6 +12,15 @@
 # "prod"). Not scoped to exact ARNs where API Gateway/ACM/Lambda
 # event-source-mappings don't support pre-creation resource ARNs at all.
 
+locals {
+  reporter_serverless_runtime_roles = [
+    "arn:aws:iam::*:role/snacker-tracker-lambda-execution-*",
+    "arn:aws:iam::*:role/snacker-tracker-api-gateway-firehose-role-*",
+    "arn:aws:iam::*:role/snacker-tracker-eb-delivery-*",
+    "arn:aws:iam::*:role/firehose-delivery-*",
+  ]
+}
+
 module "reporter_serverless_deploy" {
   source = "./modules/github_actions_role"
 
@@ -82,47 +91,45 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
     resources = ["*"]
   }
 
+  # The app's own runtime roles, by the names its Terraform gives them:
+  # "${api_name}-<role>-${workspace}" (api_name defaulting to
+  # "snacker-tracker"), or a name_prefix for the Firehose and EventBridge
+  # ones. Exact prefixes rather than snacker-tracker-*, which would also
+  # cover interface's roles (snacker-tracker-<env>-*).
   statement {
     sid    = "OwnServiceRoles"
     effect = "Allow"
     actions = [
-      "iam:CreateRole",
-      "iam:DeleteRole",
       "iam:GetRole",
-      "iam:UpdateAssumeRolePolicy",
-      "iam:PutRolePolicy",
       "iam:GetRolePolicy",
-      "iam:DeleteRolePolicy",
       "iam:ListRolePolicies",
-      "iam:AttachRolePolicy",
-      "iam:DetachRolePolicy",
       "iam:ListAttachedRolePolicies",
       "iam:TagRole",
       "iam:UntagRole",
+      "iam:DeleteRole",
+      "iam:UpdateAssumeRolePolicy",
       "iam:PassRole",
     ]
-    # Covers this app's own runtime roles: lambda execution role and
-    # api-gateway role (both "${api_name}-*-${workspace}" =>
-    # snacker-tracker-*), the firehose delivery role, and the eventbridge
-    # delivery role (name_prefix-based, not api_name-prefixed).
-    resources = [
-      "arn:aws:iam::*:role/snacker-tracker-*",
-      "arn:aws:iam::*:role/firehose-delivery-*",
-      "arn:aws:iam::*:role/eventbridge_delivery_role*",
-    ]
+    resources = local.reporter_serverless_runtime_roles
   }
 
-  # Lets that app put runtime_role_boundary.tf's boundary on its existing
-  # runtime roles, and only that one: no other boundary can be set, and
-  # none can be removed (DeleteRolePermissionsBoundary isn't granted).
+  # Creating a role, or changing what it may do, only when it carries
+  # runtime_role_boundary.tf's boundary: whatever policy the app writes, its
+  # roles can never manage IAM. No AttachRolePolicy: the app only uses
+  # inline policies, and attaching would allow AWS managed ones such as
+  # AdministratorAccess. Detach stays for deleting roles. No
+  # DeleteRolePermissionsBoundary, so the boundary can't be taken off.
   statement {
-    sid     = "SetRuntimeRoleBoundary"
-    effect  = "Allow"
-    actions = ["iam:PutRolePermissionsBoundary"]
-    resources = [
-      "arn:aws:iam::*:role/snacker-tracker-*",
-      "arn:aws:iam::*:role/firehose-delivery-*",
+    sid    = "OwnServiceRolePermissions"
+    effect = "Allow"
+    actions = [
+      "iam:CreateRole",
+      "iam:PutRolePolicy",
+      "iam:DeleteRolePolicy",
+      "iam:DetachRolePolicy",
+      "iam:PutRolePermissionsBoundary",
     ]
+    resources = local.reporter_serverless_runtime_roles
     condition {
       test     = "StringEquals"
       variable = "iam:PermissionsBoundary"
