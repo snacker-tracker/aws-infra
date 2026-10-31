@@ -109,9 +109,11 @@ data "aws_iam_policy_document" "interface_workloads" {
     resources = ["${local.interface_function_arn}:${each.value.prefix}-*"]
   }
 
+  # ValidateStateMachineDefinition checks a definition without naming a state machine, so IAM
+  # sees it on stateMachine:*; it reads nothing.
   statement {
     sid       = "ListFunctions"
-    actions   = ["lambda:ListFunctions", "scheduler:ListSchedules", "logs:DescribeLogGroups", "states:ListStateMachines"]
+    actions   = ["lambda:ListFunctions", "scheduler:ListSchedules", "logs:DescribeLogGroups", "states:ListStateMachines", "states:ValidateStateMachineDefinition"]
     resources = ["*"]
   }
 
@@ -121,7 +123,7 @@ data "aws_iam_policy_document" "interface_workloads" {
     sid = "StateMachines"
     actions = [
       "states:CreateStateMachine", "states:UpdateStateMachine", "states:DeleteStateMachine",
-      "states:DescribeStateMachine", "states:ListStateMachineVersions", "states:ValidateStateMachineDefinition",
+      "states:DescribeStateMachine", "states:ListStateMachineVersions",
       "states:TagResource", "states:UntagResource", "states:ListTagsForResource",
     ]
     resources = ["arn:aws:states:${var.region}:${local.interface_account}:stateMachine:${each.value.prefix}-*"]
