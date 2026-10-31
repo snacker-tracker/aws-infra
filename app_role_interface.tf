@@ -8,7 +8,9 @@
 # a new permission for interface's CI is now a change here:
 # - functions, schedules and log groups snacker-tracker-<env>-*
 # - the buckets snacker-tracker-<env>-{site,working,access-logs}
+# - the state machines snacker-tracker-<env>-* (the stepdag graph, interface #121)
 # - the workload roles snacker-tracker-<env>-{build,extraction,scheduler},
+#   snacker-tracker-<env>-graph-* and snacker-tracker-<env>-graph-state-machine,
 #   which interface's admin configuration still creates
 # - CloudFront distributions and ACM certificates tagged
 #   Project=snacker-tracker
@@ -52,8 +54,14 @@ locals {
       access_log_group_arn   = "${local.interface_log_delivery_arn}:log-group:/aws/vendedlogs/cloudfront/snacker-tracker-${env}-*"
       main_state_object      = "env:/${env}/snacker-tracker-interface"
       workload_roles = {
-        lambda    = ["${local.interface_role_arn}/snacker-tracker-${env}-build", "${local.interface_role_arn}/snacker-tracker-${env}-extraction"]
+        # The graph's functions run as one role per manifest role, snacker-tracker-<env>-graph-<role>.
+        lambda = [
+          "${local.interface_role_arn}/snacker-tracker-${env}-build",
+          "${local.interface_role_arn}/snacker-tracker-${env}-extraction",
+          "${local.interface_role_arn}/snacker-tracker-${env}-graph-*",
+        ]
         scheduler = ["${local.interface_role_arn}/snacker-tracker-${env}-scheduler"]
+        states    = ["${local.interface_role_arn}/snacker-tracker-${env}-graph-state-machine"]
       }
     })
   }
@@ -103,8 +111,20 @@ data "aws_iam_policy_document" "interface_workloads" {
 
   statement {
     sid       = "ListFunctions"
-    actions   = ["lambda:ListFunctions", "scheduler:ListSchedules", "logs:DescribeLogGroups"]
+    actions   = ["lambda:ListFunctions", "scheduler:ListSchedules", "logs:DescribeLogGroups", "states:ListStateMachines"]
     resources = ["*"]
+  }
+
+  # The stepdag graph's state machine (interface #121). Its executions are started by the schedules,
+  # whose role the admin configuration grants; CI never starts or stops one.
+  statement {
+    sid = "StateMachines"
+    actions = [
+      "states:CreateStateMachine", "states:UpdateStateMachine", "states:DeleteStateMachine",
+      "states:DescribeStateMachine", "states:ListStateMachineVersions", "states:ValidateStateMachineDefinition",
+      "states:TagResource", "states:UntagResource", "states:ListTagsForResource",
+    ]
+    resources = ["arn:aws:states:${var.region}:${local.interface_account}:stateMachine:${each.value.prefix}-*"]
   }
 
   statement {
