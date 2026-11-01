@@ -81,8 +81,10 @@ data "aws_iam_policy_document" "snacker_tracker_lambda_interface_pull" {
   }
 }
 
-# Untagged only: images are tagged by commit SHA and prod may run an older
-# one than dev, so tagged images are never expired automatically.
+# Images are tagged by commit SHA, and interface's deploy adds a
+# `<environment>-<UTC time>` tag to each image it deploys. Prod may run an
+# older image than dev, so an image is kept while it's among its environment's
+# latest deploys: a rule can't expire an image a higher-priority rule matched.
 resource "aws_ecr_lifecycle_policy" "snacker_tracker_lambda_interface" {
   repository = aws_ecr_repository.snacker_tracker_lambda_interface.name
 
@@ -90,6 +92,45 @@ resource "aws_ecr_lifecycle_policy" "snacker_tracker_lambda_interface" {
     rules = [
       {
         rulePriority = 1
+        description  = "Keep the images of prod's last 5 deploys"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["prod-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 5
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep the images of dev's last 3 deploys"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["dev-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 3
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 3
+        description  = "Keep the 10 newest of the other tagged images"
+        selection = {
+          tagStatus      = "tagged"
+          tagPatternList = ["*"]
+          countType      = "imageCountMoreThan"
+          countNumber    = 10
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 4
         description  = "Expire untagged images after 7 days"
         selection = {
           tagStatus   = "untagged"

@@ -174,16 +174,18 @@ data "aws_iam_policy_document" "interface_workloads" {
     resources = ["*"]
   }
 
-  # Dev builds the image; prod only reads it (interface's ADR 0006).
+  # Dev builds the image; prod only reads it (interface's ADR 0006), except that each
+  # environment tags the image it deploys, so ecr.tf's lifecycle rules keep it. PutImage
+  # without the layer uploads can only add a manifest whose layers are already there.
   statement {
     sid = "Image"
     actions = concat(
       [
         "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer", "ecr:BatchCheckLayerAvailability",
-        "ecr:DescribeImages", "ecr:DescribeRepositories",
+        "ecr:DescribeImages", "ecr:DescribeRepositories", "ecr:PutImage",
       ],
       each.value.can_push_images ? [
-        "ecr:PutImage", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload",
+        "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload",
       ] : [],
     )
     resources = [aws_ecr_repository.snacker_tracker_lambda_interface.arn]
