@@ -114,8 +114,9 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
   }
 
   # Creating a role, or changing what it may do, only when it carries
-  # runtime_role_boundary.tf's boundary: whatever policy the app writes, its
-  # roles can never manage IAM. No AttachRolePolicy: the app only uses
+  # runtime_role_boundary_reporter_serverless.tf's boundary: whatever policy
+  # the app writes, its roles reach only its own resources and can never
+  # manage IAM. No AttachRolePolicy: the app only uses
   # inline policies, and attaching would allow AWS managed ones such as
   # AdministratorAccess. Detach stays for deleting roles. No
   # DeleteRolePermissionsBoundary, so the boundary can't be taken off.
@@ -130,16 +131,10 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
       "iam:PutRolePermissionsBoundary",
     ]
     resources = local.reporter_serverless_runtime_roles
-    # Either boundary while the app's roles move from the generic one to
-    # its own (runtime_role_boundary_reporter_serverless.tf); the generic
-    # one goes once both workspaces have moved.
     condition {
       test     = "StringEquals"
       variable = "iam:PermissionsBoundary"
-      values = [
-        aws_iam_policy.runtime_role_boundary.arn,
-        aws_iam_policy.reporter_serverless_runtime_boundary.arn,
-      ]
+      values   = [aws_iam_policy.reporter_serverless_runtime_boundary.arn]
     }
   }
 
