@@ -40,7 +40,7 @@ module "reporter_serverless_deploy" {
     "environment:prod",
   ]
 
-  oidc_provider_arn        = aws_iam_openid_connect_provider.github_actions.arn
+  oidc_provider_arn        = data.aws_iam_openid_connect_provider.github_actions.arn
   permissions_boundary_arn = aws_iam_policy.app_role_boundary.arn
 
   policy_json = data.aws_iam_policy_document.reporter_serverless_deploy.json
@@ -199,7 +199,7 @@ data "aws_iam_policy_document" "reporter_serverless_deploy" {
       "route53:ListResourceRecordSets",
       "route53:GetHostedZone",
     ]
-    resources = [aws_route53_zone.khanom_xyz.arn]
+    resources = [data.aws_route53_zone.khanom_xyz.arn]
   }
 
   statement {

@@ -15,7 +15,7 @@
 #   github_org_id            = var.github_org_id # same org as this repo
 #   github_repo_id           = "<numeric repo ID, see README for how to find it>"
 #   subjects                 = ["ref:refs/heads/main"] # or ["environment:prod"], etc.
-#   oidc_provider_arn        = aws_iam_openid_connect_provider.github_actions.arn
+#   oidc_provider_arn        = data.aws_iam_openid_connect_provider.github_actions.arn
 #   permissions_boundary_arn = aws_iam_policy.app_role_boundary.arn
 #
 #   policy_json = data.aws_iam_policy_document.snacker_tracker_deploy.json

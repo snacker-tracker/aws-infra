@@ -10,24 +10,11 @@ variable "account_alias" {
   default     = "snacker-tracker"
 }
 
-variable "github_repo" {
-  description = "GitHub \"org/repo\" allowed to assume the CI admin role via OIDC"
-  type        = string
-  default     = "snacker-tracker/aws-infra"
-}
-
-# Numeric GitHub org/repo IDs, needed to build the OIDC `sub` condition
-# value. See the comment in github_oidc.tf for why these are required
-# instead of matching on job_workflow_ref. IDs are stable across
-# org/repo renames (that's the whole point of GitHub embedding them).
+# Numeric GitHub org ID, for app deploy roles whose repos put it in the
+# OIDC `sub` claim (see the OIDC gotchas in README.md). IDs are stable
+# across org renames (that's the whole point of GitHub embedding them).
 variable "github_org_id" {
-  description = "Numeric GitHub organization ID for github_repo's owner"
+  description = "Numeric GitHub organization ID for the snacker-tracker org"
   type        = string
   default     = "59108816"
-}
-
-variable "github_repo_id" {
-  description = "Numeric GitHub repository ID for github_repo"
-  type        = string
-  default     = "1342946994"
 }

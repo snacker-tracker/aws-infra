@@ -77,7 +77,7 @@ module "interface_deploy" {
   github_repo_id = "1428184726"
   subjects       = each.value.subjects
 
-  oidc_provider_arn        = aws_iam_openid_connect_provider.github_actions.arn
+  oidc_provider_arn        = data.aws_iam_openid_connect_provider.github_actions.arn
   permissions_boundary_arn = aws_iam_policy.app_role_boundary.arn
 
   # Four policies rather than one: together they're too large for a single policy.
@@ -283,7 +283,7 @@ data "aws_iam_policy_document" "interface_edge" {
   statement {
     sid       = "ReadZone"
     actions   = ["route53:GetHostedZone", "route53:ListResourceRecordSets", "route53:ListTagsForResource"]
-    resources = [aws_route53_zone.khanom_xyz.arn]
+    resources = [data.aws_route53_zone.khanom_xyz.arn]
   }
 
   statement {
@@ -296,7 +296,7 @@ data "aws_iam_policy_document" "interface_edge" {
   statement {
     sid       = "OwnRecords"
     actions   = ["route53:ChangeResourceRecordSets"]
-    resources = [aws_route53_zone.khanom_xyz.arn]
+    resources = [data.aws_route53_zone.khanom_xyz.arn]
     condition {
       test     = "ForAllValues:StringLike"
       variable = "route53:ChangeResourceRecordSetsNormalizedRecordNames"
